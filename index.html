@@ -196,6 +196,23 @@
         </div>
       </div>
 
+      
+     <div class="field">
+  <span>Time range</span>
+  <div class="chip-row" id="time-range-row">
+    <button data-range="anytime" class="chip chip-active">Anytime</button>
+    <button data-range="morning" class="chip">Morning</button>
+    <button data-range="afternoon" class="chip">Afternoon</button>
+    <button data-range="evening" class="chip">Evening</button>
+    <button data-range="custom" class="chip">Custom</button>
+  </div>
+
+  <div id="custom-time-wrapper" style="display:none; margin-top:8px;">
+    <input type="time" id="fReminderTime">
+  </div>
+</div>
+
+      
       <div class="field-toggle">
         <span>Reminders</span>
         <label class="switch">
@@ -241,5 +258,6 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("service-worker.js");
 }
 </script>
+
 
 
