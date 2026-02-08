@@ -3,28 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <title>Streamflow</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <header class="top-bar">
-    <div class="top-left">
-      <h1>Streamflow</h1>
-      <span id="today-label"></span>
-    </div>
-    <button id="dark-toggle" class="icon-btn" aria-label="Toggle dark mode">🌓</button>
+    <h1>Streamflow</h1>
+    <button id="dark-toggle" class="icon-btn">🌓</button>
   </header>
 
   <main>
-    <section class="calendar-bar">
-      <div id="week-row"></div>
-    </section>
+    <section id="week-row" class="week-row"></section>
 
     <section class="toolbar">
       <button id="add-btn" class="primary-btn">Add</button>
-      <button id="skip-btn" class="ghost-btn">Skip</button>
-      <button id="hide-btn" class="ghost-btn">Hide</button>
       <button id="reset-btn" class="ghost-btn">Reset</button>
       <span id="summary-label" class="summary-label"></span>
     </section>
@@ -32,9 +29,9 @@
     <section id="habit-list" class="habit-list"></section>
   </main>
 
-  <!-- Habit modal -->
   <div id="habit-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
+
     <div class="modal-content">
       <header class="modal-header">
         <h2 id="modal-title">New habit</h2>
@@ -44,16 +41,16 @@
       <div class="modal-body">
         <div class="field">
           <span>Title</span>
-          <input id="fTitle" type="text" placeholder="e.g. Drink water" />
+          <input id="fTitle" type="text" />
         </div>
 
         <div class="field">
           <span>Emoji</span>
-          <input id="fEmoji" type="text" maxlength="2" placeholder="💧" />
+          <input id="fEmoji" type="text" maxlength="2" />
         </div>
 
         <div class="field">
-          <span>Goal (units per day)</span>
+          <span>Goal</span>
           <input id="fGoal" type="number" min="1" value="3" />
         </div>
 
@@ -84,7 +81,8 @@
             <button data-range="evening" class="chip">Evening</button>
             <button data-range="custom" class="chip">Custom</button>
           </div>
-          <div id="custom-time-wrapper" style="display:none; margin-top:8px;">
+
+          <div id="custom-time-wrapper" class="hidden">
             <input type="time" id="fReminderTime" />
           </div>
         </div>
@@ -100,7 +98,6 @@
 
       <footer class="modal-footer">
         <button id="delete-btn" class="danger-btn hidden">Delete</button>
-        <div class="spacer"></div>
         <button id="cancel-btn" class="ghost-btn">Cancel</button>
         <button id="save-btn" class="primary-btn">Save</button>
       </footer>
@@ -108,6 +105,7 @@
   </div>
 
   <script src="app.js"></script>
+
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("service-worker.js");
