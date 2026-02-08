@@ -1,359 +1,328 @@
-// --- State & storage ---
+// ---------- Utilities ----------
+const today = new Date();
 
-let habits = JSON.parse(localStorage.getItem("streamflow_habits") || "[]");
-let completions = JSON.parse(localStorage.getItem("streamflow_completions") || "{}");
-// completions[date][habitId] = count
-
-function saveState() {
-  localStorage.setItem("streamflow_habits", JSON.stringify(habits));
-  localStorage.setItem("streamflow_completions", JSON.stringify(completions));
-}
-
-// --- Helpers ---
-
-function todayStr(d = new Date()) {
+function todayStr(d = today) {
   return d.toISOString().slice(0, 10);
 }
 
-function getCompletion(habit, date = new Date()) {
-  const key = todayStr(date);
-  const dayData = completions[key] || {};
+function loadJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveJSON(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+// ---------- State ----------
+let habits = loadJSON("sf_habits", []);
+let completions = loadJSON("sf_completions", {});
+let editingId = null;
+
+// ---------- DOM ----------
+const habitList = document.getElementById("habit-list");
+const addBtn = document.getElementById("add-btn");
+const resetBtn = document.getElementById("reset-btn");
+const summaryLabel = document.getElementById("summary-label");
+const todayLabel = document.getElementById("today-label");
+const weekRow = document.getElementById("week-row");
+
+const modal = document.getElementById("habit-modal");
+const closeModalBtn = document.getElementById("close-modal");
+const cancelBtn = document.getElementById("cancel-btn");
+const saveBtn = document.getElementById("save-btn");
+const deleteBtn = document.getElementById("delete-btn");
+const modalTitle = document.getElementById("modal-title");
+
+const fTitle = document.getElementById("fTitle");
+const fEmoji = document.getElementById("fEmoji");
+const fGoal = document.getElementById("fGoal");
+const fStart = document.getElementById("fStart");
+const daysRow = document.getElementById("days-row");
+const timeRangeRow = document.getElementById("time-range-row");
+const customTimeWrapper = document.getElementById("custom-time-wrapper");
+const fReminderTime = document.getElementById("fReminderTime");
+const typeRow = document.getElementById("type-row");
+
+const darkToggle = document.getElementById("dark-toggle");
+
+// ---------- Dark mode ----------
+(function initDarkMode() {
+  const stored = localStorage.getItem("sf_dark");
+  if (stored === "true") {
+    document.body.classList.add("dark");
+  }
+  darkToggle.addEventListener("click", () => {
+    document.body.classList.toggle("dark");
+    localStorage.setItem(
+      "sf_dark",
+      document.body.classList.contains("dark")
+    );
+  });
+})();
+
+// ---------- Week bar ----------
+(function renderWeek() {
+  const base = new Date(today);
+  const day = base.getDay(); // 0-6
+  const mondayOffset = (day + 6) % 7;
+  base.setDate(base.getDate() - mondayOffset);
+
+  const labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const btn = document.createElement("button");
+    btn.className = "day-pill";
+    btn.textContent = labels[i];
+    if (todayStr(d) === todayStr()) {
+      btn.classList.add("day-pill-active");
+    }
+    weekRow.appendChild(btn);
+  }
+
+  todayLabel.textContent = today.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+})();
+
+// ---------- Helpers ----------
+function getSelectedDays() {
+  return Array.from(daysRow.querySelectorAll(".chip-active")).map((b) =>
+    parseInt(b.dataset.day, 10)
+  );
+}
+
+function setSelectedDays(days) {
+  Array.from(daysRow.querySelectorAll(".chip")).forEach((b) => {
+    const d = parseInt(b.dataset.day, 10);
+    if (days.includes(d)) b.classList.add("chip-active");
+    else b.classList.remove("chip-active");
+  });
+}
+
+function getSelectedTimeRange() {
+  const active = timeRangeRow.querySelector(".chip-active");
+  return active ? active.dataset.range : "anytime";
+}
+
+function setSelectedTimeRange(range) {
+  Array.from(timeRangeRow.querySelectorAll(".chip")).forEach((b) => {
+    if (b.dataset.range === range) b.classList.add("chip-active");
+    else b.classList.remove("chip-active");
+  });
+  if (range === "custom") {
+    customTimeWrapper.style.display = "block";
+  } else {
+    customTimeWrapper.style.display = "none";
+  }
+}
+
+function getSelectedType() {
+  const active = typeRow.querySelector(".chip-active");
+  return active ? active.dataset.type : "build";
+}
+
+function setSelectedType(type) {
+  Array.from(typeRow.querySelectorAll(".chip")).forEach((b) => {
+    if (b.dataset.type === type) b.classList.add("chip-active");
+    else b.classList.remove("chip-active");
+  });
+}
+
+// ---------- Modal ----------
+function openModal(habit = null) {
+  modal.classList.remove("hidden");
+  if (habit) {
+    editingId = habit.id;
+    modalTitle.textContent = "Edit habit";
+    deleteBtn.classList.remove("hidden");
+
+    fTitle.value = habit.title;
+    fEmoji.value = habit.emoji || "";
+    fGoal.value = habit.goal;
+    fStart.value = habit.start || todayStr();
+    setSelectedDays(habit.days || [1, 2, 3, 4, 5, 6, 0]);
+    setSelectedTimeRange(habit.reminderRange || "anytime");
+    fReminderTime.value = habit.reminderTime || "";
+    setSelectedType(habit.type || "build");
+  } else {
+    editingId = null;
+    modalTitle.textContent = "New habit";
+    deleteBtn.classList.add("hidden");
+
+    fTitle.value = "";
+    fEmoji.value = "";
+    fGoal.value = 3;
+    fStart.value = todayStr();
+    setSelectedDays([1, 2, 3, 4, 5, 6, 0]);
+    setSelectedTimeRange("anytime");
+    fReminderTime.value = "";
+    setSelectedType("build");
+  }
+}
+
+function closeModal() {
+  modal.classList.add("hidden");
+}
+
+// ---------- Save / delete ----------
+function saveHabit() {
+  const title = fTitle.value.trim();
+  if (!title) {
+    alert("Please enter a title.");
+    return;
+  }
+
+  if (!fStart.value) {
+    fStart.value = todayStr();
+  }
+
+  let goal = parseInt(fGoal.value, 10);
+  if (!goal || goal < 1) goal = 1;
+
+  let days = getSelectedDays();
+  if (days.length === 0) {
+    days = [1, 2, 3, 4, 5, 6, 0];
+  }
+
+  const reminderRange = getSelectedTimeRange();
+  const reminderTime =
+    reminderRange === "custom" && fReminderTime.value
+      ? fReminderTime.value
+      : null;
+
+  const type = getSelectedType();
+
+  if (editingId) {
+    const idx = habits.findIndex((h) => h.id === editingId);
+    if (idx !== -1) {
+      habits[idx] = {
+        ...habits[idx],
+        title,
+        emoji: fEmoji.value || "",
+        goal,
+        start: fStart.value,
+        days,
+        reminderRange,
+        reminderTime,
+        type,
+      };
+    }
+  } else {
+    const id = "h_" + Date.now();
+    habits.push({
+      id,
+      title,
+      emoji: fEmoji.value || "",
+      goal,
+      start: fStart.value,
+      days,
+      reminderRange,
+      reminderTime,
+      type,
+    });
+  }
+
+  saveJSON("sf_habits", habits);
+  closeModal();
+  render();
+}
+
+function deleteHabit() {
+  if (!editingId) return;
+  if (!confirm("Delete this habit?")) return;
+  habits = habits.filter((h) => h.id !== editingId);
+  saveJSON("sf_habits", habits);
+  closeModal();
+  render();
+}
+
+// ---------- Progress ----------
+function getDoneFor(habit, dateKey) {
+  const dayData = completions[dateKey] || {};
   return dayData[habit.id] || 0;
 }
 
-function addCompletion(habit, amount = 1, date = new Date()) {
-  const key = todayStr(date);
-  if (!completions[key]) completions[key] = {};
-  completions[key][habit.id] = (completions[key][habit.id] || 0) + amount;
-  saveState();
+function setDoneFor(habit, dateKey, value) {
+  if (!completions[dateKey]) completions[dateKey] = {};
+  completions[dateKey][habit.id] = value;
+  saveJSON("sf_completions", completions);
 }
 
-// --- UI references ---
-
-const habitListEl = document.getElementById("habit-list");
-const emptyHomeEl = document.getElementById("empty-home");
-
-const overallRateEl = document.getElementById("overall-rate");
-const overallRateBigEl = document.getElementById("overall-rate-big");
-const bestStreakEl = document.getElementById("best-streak");
-const perfectDaysEl = document.getElementById("perfect-days");
-
-const addBtn = document.getElementById("add-btn");
-const sheetBackdrop = document.getElementById("sheet-backdrop");
-const sheet = document.getElementById("habit-sheet");
-const sheetClose = document.getElementById("sheet-close");
-const sheetTitle = document.getElementById("sheet-title");
-const saveBtn = document.getElementById("habit-save");
-
-// Form fields
-const fTitle = document.getElementById("habit-title");
-const fDesc = document.getElementById("habit-desc");
-const fEmoji = document.getElementById("habit-emoji");
-const fColor = document.getElementById("habit-color");
-const fCategory = document.getElementById("habit-category");
-const fType = document.getElementById("habit-type");
-const fPeriod = document.getElementById("habit-period");
-const fGoal = document.getElementById("habit-goal");
-const fUnit = document.getElementById("habit-unit");
-const fGoalPeriodLabel = document.getElementById("habit-goal-period-label");
-const weekdayRow = document.getElementById("weekday-row");
-const timeRangeRow = document.getElementById("time-range-row");
-const fReminder = document.getElementById("habit-reminder");
-const fMemo = document.getElementById("habit-memo");
-const fStart = document.getElementById("habit-start");
-const fEnd = document.getElementById("habit-end");
-
-let editingHabitId = null;
-
-// --- Filters ---
-
-let filterStatus = "all";
-let filterTime = "all";
-let filterCat = "all";
-
-document.querySelectorAll("[data-status]").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll("[data-status]").forEach(b => b.classList.remove("chip-active"));
-    btn.classList.add("chip-active");
-    filterStatus = btn.getAttribute("data-status");
-    render();
-  });
-});
-
-document.querySelectorAll("[data-time]").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll("[data-time]").forEach(b => b.classList.remove("chip-active"));
-    btn.classList.add("chip-active");
-    filterTime = btn.getAttribute("data-time");
-    render();
-  });
-});
-
-document.querySelectorAll(".cat-chip").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".cat-chip").forEach(b => b.classList.remove("cat-active"));
-    btn.classList.add("cat-active");
-    filterCat = btn.getAttribute("data-cat");
-    render();
-  });
-});
-
-// --- Sheet open/close ---
-
-function openSheet(habit = null) {
-  document.body.classList.add("sheet-open");
-  editingHabitId = habit ? habit.id : null;
-  sheetTitle.textContent = habit ? "Habit bewerken" : "Nieuwe habit";
-
-  const today = todayStr();
-  fStart.value = today;
-
-  if (habit) {
-    fTitle.value = habit.title;
-    fDesc.value = habit.desc || "";
-    fEmoji.value = habit.emoji || "";
-    fColor.value = habit.color || "#2a6df4";
-    fCategory.value = habit.category || "other";
-    fType.value = habit.type || "build";
-    fPeriod.value = habit.period || "daily";
-    fGoal.value = habit.goal || 1;
-    fUnit.value = habit.unit || "count";
-    fReminder.checked = !!habit.reminder;
-    fReminderTime.value = habit.reminderTime || "";
-    fMemo.checked = habit.memo !== false;
-    fStart.value = habit.start || today;
-    fEnd.value = habit.end || "";
-
-    weekdayRow.querySelectorAll("button").forEach(btn => {
-      const d = parseInt(btn.getAttribute("data-day"), 10);
-      btn.classList.toggle("active", habit.days?.includes(d));
-    });
-
-    timeRangeRow.querySelectorAll("button").forEach(btn => {
-      const r = btn.getAttribute("data-range");
-      btn.classList.toggle("chip-active", habit.timeRange === r);
-    });
-  } else {
-    fTitle.value = "";
-    fDesc.value = "";
-    fEmoji.value = "";
-    fColor.value = "#2a6df4";
-    fCategory.value = "water";
-    fType.value = "build";
-    fPeriod.value = "daily";
-    fGoal.value = 1;
-    fUnit.value = "count";
-    fReminder.checked = false;
-    fMemo.checked = true;
-    fStart.value = today;
-    fEnd.value = "";
-
-    weekdayRow.querySelectorAll("button").forEach(btn => {
-      const d = parseInt(btn.getAttribute("data-day"), 10);
-      btn.classList.toggle("active", [1,2,3,4,5].includes(d)); // standaard ma-vr
-    });
-
-    timeRangeRow.querySelectorAll("button").forEach(btn => {
-      btn.classList.toggle("chip-active", btn.getAttribute("data-range") === "anytime");
-    });
-  }
-
-  updateGoalPeriodLabel();
-}
-
-function closeSheet() {
-  document.body.classList.remove("sheet-open");
-}
-
-sheetBackdrop.addEventListener("click", closeSheet);
-sheetClose.addEventListener("click", closeSheet);
-addBtn.addEventListener("click", () => openSheet());
-
-// Weekdays select
-weekdayRow.querySelectorAll("button").forEach(btn => {
-  btn.addEventListener("click", () => {
-    btn.classList.toggle("active");
-  });
-});
-
-// Time range select
-timeRangeRow.querySelectorAll("button").forEach(btn => {
-  btn.addEventListener("click", () => {
-    timeRangeRow.querySelectorAll("button").forEach(b => b.classList.remove("chip-active"));
-    btn.classList.add("chip-active");
-  });
-});
-
-// Period label
-function updateGoalPeriodLabel() {
-  const p = fPeriod.value;
-  fGoalPeriodLabel.textContent = p === "daily" ? "Day" : p === "weekly" ? "Week" : "Month";
-}
-fPeriod.addEventListener("change", updateGoalPeriodLabel);
-
-// Save habit
-saveBtn.addEventListener("click", () => {
-  const title = fTitle.value.trim();
-  if (!fStart.value) fStart.value = todayStr();
-  if (!title) {
-    alert("Geef een titel op.");
-    return;
-  }
-  if (!fStart.value) fStart.value = todayStr();
-
-
-  const days = [];
-  weekdayRow.querySelectorAll("button.active").forEach(btn => {
-    days.push(parseInt(btn.getAttribute("data-day"), 10));
-  });
-
-  const timeRangeBtn = timeRangeRow.querySelector("button.chip-active");
-  const timeRange = timeRangeBtn ? timeRangeBtn.getAttribute("data-range") : "anytime";
-
-  const habitData = {
-    id: editingHabitId || Date.now().toString(),
-    title,
-    desc: fDesc.value.trim(),
-    emoji: fEmoji.value || "✅",
-    color: fColor.value,
-    category: fCategory.value,
-    type: fType.value, // build of quit
-    period: fPeriod.value,
-    goal: parseInt(fGoal.value, 10) || 1,
-    unit: fUnit.value,
-    days,
-    timeRange,
-    reminder: fReminder.checked,
-    reminderTime: fReminderTime.value || null,
-    memo: fMemo.checked,
-    start: fStart.value ? fStart.value : todayStr(),
-    end: fEnd.value || ""
-  };
-
-  const idx = habits.findIndex(h => h.id === habitData.id);
-  if (idx >= 0) {
-    habits[idx] = habitData;
-  } else {
-    habits.push(habitData);
-  }
-
-  saveState();
-  closeSheet();
-  render();
-});
-
-// --- Logic: applies today ---
-
-function habitAppliesToday(habit, date = new Date()) {
-  const day = date.getDay();
-  if (habit.days && habit.days.length && !habit.days.includes(day)) return false;
-
-  const today = todayStr(date);
-  if (habit.start && today < habit.start) return false;
-  if (habit.end && today > habit.end) return false;
-
-  return true;
-}
-
-// --- Logic: success & percentage (build vs quit) ---
-
-function computeProgress(habit, done) {
+function computePercent(habit, done) {
   const goal = habit.goal || 1;
-
-  if (habit.type === "build") {
-    const pct = Math.min(100, Math.round((done / goal) * 100));
-    const met = done >= goal;
-    return { pct, met };
-  } else {
-    // quit: minder is beter, alles <= goal is gehaald
-    const capped = Math.min(done, goal);
-    const pct = Math.round(((goal - capped) / goal) * 100); // 0 cups = 100%, goal cups = 0%
-    const met = done <= goal;
-    return { pct, met };
+  const ratio = Math.max(0, Math.min(done / goal, 1));
+  if (habit.type === "quit") {
+    return Math.round((1 - ratio) * 100);
   }
+  return Math.round(ratio * 100);
 }
 
-// --- Rendering habits (home) ---
+// ---------- Render ----------
+function render() {
+  const key = todayStr();
+  habitList.innerHTML = "";
 
-function renderHabits() {
-  habitListEl.innerHTML = "";
-
-  const today = new Date();
-
-  let totalGoals = 0;
-  let totalScore = 0; // voor overall rate
-
-  const visibleHabits = habits.filter(habit => {
-    if (!habitAppliesToday(habit, today)) return false;
-    if (filterCat !== "all" && habit.category !== filterCat) return false;
-    return true;
-  });
-
-  if (visibleHabits.length === 0) {
-    emptyHomeEl.style.display = "block";
-    overallRateEl.textContent = "0%";
+  if (!habits.length) {
+    habitList.innerHTML =
+      '<p class="empty-state">No habits yet. Tap "Add" to create one.</p>';
+    summaryLabel.textContent = "";
     return;
-  } else {
-    emptyHomeEl.style.display = "none";
   }
 
-  visibleHabits.forEach(habit => {
-    const done = getCompletion(habit, today);
-    const goal = habit.goal || 1;
+  let doneCount = 0;
 
-    const { pct, met } = computeProgress(habit, done);
+  habits.forEach((habit) => {
+    const startOk = !habit.start || habit.start <= key;
+    const day = new Date(key).getDay();
+    const activeToday = (habit.days || []).includes(day);
 
-    // filters op status
-    if (filterStatus === "unmet" && met) return;
-    if (filterStatus === "met" && !met) return;
+    if (!startOk || !activeToday) return;
 
-    totalGoals += 1;
-    totalScore += pct;
+    const done = getDoneFor(habit, key);
+    const percent = computePercent(habit, done);
 
-    const card = document.createElement("div");
+    const card = document.createElement("article");
     card.className = "habit-card";
 
     const top = document.createElement("div");
     top.className = "habit-top";
 
     const left = document.createElement("div");
-    left.className = "habit-left";
+    left.className = "habit-main";
 
-    const icon = document.createElement("div");
-    icon.className = "habit-icon";
-    icon.style.background = habit.color;
-    icon.textContent = habit.emoji;
+    const titleRow = document.createElement("div");
+    titleRow.className = "habit-title-row";
 
-    const textWrap = document.createElement("div");
-    const titleEl = document.createElement("div");
-    titleEl.className = "habit-title";
-    titleEl.textContent = habit.title;
+    const emojiSpan = document.createElement("span");
+    emojiSpan.className = "habit-emoji";
+    emojiSpan.textContent = habit.emoji || "•";
 
-    const subEl = document.createElement("div");
-    subEl.className = "habit-sub";
-    const unitLabel = habit.unit === "min" ? "min" : habit.unit === "drink" ? "drink" : "";
-    const goalText = habit.type === "quit" ? `max ${goal}` : `${goal}`;
-    subEl.textContent = `${done}/${goalText}${unitLabel ? " " + unitLabel : ""}`;
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "habit-title";
+    titleSpan.textContent = habit.title;
 
-    textWrap.appendChild(titleEl);
-    textWrap.appendChild(subEl);
+    titleRow.appendChild(emojiSpan);
+    titleRow.appendChild(titleSpan);
 
-    left.appendChild(icon);
-    left.appendChild(textWrap);
+    const meta = document.createElement("div");
+    meta.className = "habit-meta";
+    meta.textContent = `${done}/${habit.goal}`;
+
+    left.appendChild(titleRow);
+    left.appendChild(meta);
 
     const right = document.createElement("div");
-    right.className = "habit-right";
-
-    const progressEl = document.createElement("div");
-    progressEl.className = "habit-progress";
-    progressEl.textContent = `${pct}%`;
-
-    const streakEl = document.createElement("div");
-    streakEl.className = "habit-streak";
-    streakEl.textContent = `🔥 ${computeStreak(habit)} Days`;
-
-    right.appendChild(progressEl);
-    right.appendChild(streakEl);
+    right.className = "habit-percent";
+    right.textContent = percent + "%";
 
     top.appendChild(left);
     top.appendChild(right);
@@ -361,236 +330,82 @@ function renderHabits() {
     const bottom = document.createElement("div");
     bottom.className = "habit-bottom";
 
-    const bar = document.createElement("div");
-    bar.className = "progress-bar";
-    const fill = document.createElement("div");
-    fill.className = "progress-fill";
-    fill.style.width = pct + "%";
-    bar.appendChild(fill);
-
     const slider = document.createElement("input");
-slider.type = "range";
-slider.min = 0;
-slider.max = habit.goal;
-slider.value = Math.min(done, habit.goal);
-slider.className = "habit-slider";
+    slider.type = "range";
+    slider.min = 0;
+    slider.max = habit.goal;
+    slider.value = Math.min(done, habit.goal);
+    slider.className = "habit-slider";
+    slider.style.width = "100%";
 
-slider.addEventListener("input", () => {
-  const newValue = parseInt(slider.value, 10);
-  const key = todayStr(today);
+    slider.addEventListener("input", () => {
+      const newValue = parseInt(slider.value, 10);
+      setDoneFor(habit, key, newValue);
+      render();
+    });
 
-  if (!completions[key]) completions[key] = {};
-  completions[key][habit.id] = newValue;
-
-  saveState();
-  render();
-});
-
-bottom.appendChild(slider);
-
+    bottom.appendChild(slider);
 
     card.appendChild(top);
     card.appendChild(bottom);
 
-    card.addEventListener("dblclick", () => openSheet(habit));
-
-    habitListEl.appendChild(card);
-  });
-
-  const overall = totalGoals ? Math.round(totalScore / totalGoals) : 0;
-  overallRateEl.textContent = overall + "%";
-}
-
-// --- Streaks & stats (dashboard) ---
-
-function computeStreak(habit) {
-  let streak = 0;
-  let date = new Date();
-
-  while (true) {
-    if (!habitAppliesToday(habit, date)) break;
-    const done = getCompletion(habit, date);
-    const { met } = computeProgress(habit, done);
-    if (met) {
-      streak++;
-      date.setDate(date.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
-
-function computeGlobalStats() {
-  let best = 0;
-  habits.forEach(h => {
-    const s = computeStreak(h);
-    if (s > best) best = s;
-  });
-  bestStreakEl.textContent = best + " Days";
-
-  // Perfect days: alle actieve habits gehaald
-  let perfect = 0;
-  const today = new Date();
-  for (let i = 0; i < 60; i++) {
-    const d = new Date();
-    d.setDate(today.getDate() - i);
-    const key = todayStr(d);
-
-    const activeHabits = habits.filter(h => habitAppliesToday(h, d));
-    if (!activeHabits.length) continue;
-
-    const dayData = completions[key] || {};
-    const allMet = activeHabits.every(h => {
-      const done = dayData[h.id] || 0;
-      const { met } = computeProgress(h, done);
-      return met;
+    card.addEventListener("click", (e) => {
+      // klik op kaart om te editen, maar niet als je de slider sleept
+      if (e.target === slider) return;
+      openModal(habit);
     });
 
-    if (allMet) perfect++;
-  }
-  perfectDaysEl.textContent = perfect + " Days";
-
-  // Overall rate over laatste 7 dagen
-  let totalPct = 0;
-  let daysCount = 0;
-
-  for (let i = 0; i < 7; i++) {
-    const d = new Date();
-    d.setDate(today.getDate() - i);
-    const activeHabits = habits.filter(h => habitAppliesToday(h, d));
-    if (!activeHabits.length) continue;
-
-    let dayScore = 0;
-    activeHabits.forEach(h => {
-      const done = getCompletion(h, d);
-      const { pct } = computeProgress(h, done);
-      dayScore += pct;
-    });
-
-    totalPct += dayScore / activeHabits.length;
-    daysCount++;
-  }
-
-  const overall = daysCount ? Math.round(totalPct / daysCount) : 0;
-  overallRateBigEl.textContent = overall + "%";
-}
-
-// --- Calendar ---
-
-const calendarTitleEl = document.getElementById("calendar-title");
-const calendarGridEl = document.getElementById("calendar-grid");
-const prevMonthBtn = document.getElementById("prev-month");
-const nextMonthBtn = document.getElementById("next-month");
-
-let calendarMonth = new Date();
-
-function renderCalendar() {
-  const year = calendarMonth.getFullYear();
-  const month = calendarMonth.getMonth();
-
-  calendarTitleEl.textContent = `${String(month + 1).padStart(2, "0")}/${year}`;
-
-  calendarGridEl.innerHTML = "";
-
-  const headers = ["S", "M", "T", "W", "T", "F", "S"];
-  headers.forEach(h => {
-    const cell = document.createElement("div");
-    cell.className = "calendar-cell calendar-cell-header";
-    cell.textContent = h;
-    calendarGridEl.appendChild(cell);
+    habitList.appendChild(card);
+    doneCount++;
   });
 
-  const firstDay = new Date(year, month, 1);
-  const startDay = firstDay.getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  summaryLabel.textContent = `${doneCount} active habits today`;
+}
 
-  for (let i = 0; i < startDay; i++) {
-    const cell = document.createElement("div");
-    cell.className = "calendar-cell";
-    calendarGridEl.appendChild(cell);
+// ---------- Events ----------
+addBtn.addEventListener("click", () => openModal());
+closeModalBtn.addEventListener("click", closeModal);
+cancelBtn.addEventListener("click", closeModal);
+saveBtn.addEventListener("click", saveHabit);
+deleteBtn.addEventListener("click", deleteHabit);
+
+timeRangeRow.addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  Array.from(timeRangeRow.querySelectorAll(".chip")).forEach((b) =>
+    b.classList.remove("chip-active")
+  );
+  btn.classList.add("chip-active");
+  if (btn.dataset.range === "custom") {
+    customTimeWrapper.style.display = "block";
+  } else {
+    customTimeWrapper.style.display = "none";
+    fReminderTime.value = "";
   }
-
-  const todayStrVal = todayStr();
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const cell = document.createElement("div");
-    cell.className = "calendar-cell calendar-day";
-    cell.textContent = d;
-
-    const dateObj = new Date(year, month, d);
-    const key = todayStr(dateObj);
-    const dayData = completions[key] || {};
-    const hasAny = Object.keys(dayData).length > 0;
-
-    if (hasAny) cell.classList.add("calendar-day-has");
-    if (key === todayStrVal) cell.classList.add("calendar-day-today");
-
-    calendarGridEl.appendChild(cell);
-  }
-}
-
-prevMonthBtn.addEventListener("click", () => {
-  calendarMonth.setMonth(calendarMonth.getMonth() - 1);
-  renderCalendar();
 });
 
-nextMonthBtn.addEventListener("click", () => {
-  calendarMonth.setMonth(calendarMonth.getMonth() + 1);
-  renderCalendar();
+daysRow.addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  btn.classList.toggle("chip-active");
 });
 
-// --- Navigation between screens ---
-
-const screenHome = document.getElementById("screen-home");
-const screenDashboard = document.getElementById("screen-dashboard");
-const filtersHome = document.getElementById("filters-home");
-const catsHome = document.getElementById("categories-home");
-const filtersDashboard = document.getElementById("filters-dashboard");
-
-document.querySelectorAll(".nav-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("nav-active"));
-    btn.classList.add("nav-active");
-
-    const screen = btn.getAttribute("data-screen");
-
-    if (screen === "home") {
-      screenHome.style.display = "block";
-      screenDashboard.style.display = "none";
-      filtersHome.style.display = "block";
-      catsHome.style.display = "flex";
-      filtersDashboard.style.display = "none";
-      render();
-    } else if (screen === "dashboard") {
-      screenHome.style.display = "none";
-      screenDashboard.style.display = "block";
-      filtersHome.style.display = "none";
-      catsHome.style.display = "none";
-      filtersDashboard.style.display = "block";
-      computeGlobalStats();
-      renderCalendar();
-    } else {
-      alert("Dit scherm komt in een volgende versie van Streamflow.");
-    }
-  });
+typeRow.addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  Array.from(typeRow.querySelectorAll(".chip")).forEach((b) =>
+    b.classList.remove("chip-active")
+  );
+  btn.classList.add("chip-active");
 });
 
-// --- Init ---
+resetBtn.addEventListener("click", () => {
+  if (!confirm("Reset today’s progress?")) return;
+  const key = todayStr();
+  completions[key] = {};
+  saveJSON("sf_completions", completions);
+  render();
+});
 
-function initTopDate() {
-  const el = document.getElementById("top-date");
-  const d = new Date();
-  const options = { weekday: "long", day: "numeric", month: "long" };
-  el.textContent = d.toLocaleDateString("nl-NL", options);
-}
-
-function render() {
-  renderHabits();
-}
-
-initTopDate();
+// ---------- Init ----------
 render();
-renderCalendar();
-computeGlobalStats();
-
