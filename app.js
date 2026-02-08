@@ -119,6 +119,7 @@ function openSheet(habit = null) {
     fGoal.value = habit.goal || 1;
     fUnit.value = habit.unit || "count";
     fReminder.checked = !!habit.reminder;
+    fReminderTime.value = habit.reminderTime || "";
     fMemo.checked = habit.memo !== false;
     fStart.value = habit.start || today;
     fEnd.value = habit.end || "";
@@ -223,6 +224,7 @@ saveBtn.addEventListener("click", () => {
     days,
     timeRange,
     reminder: fReminder.checked,
+    reminderTime: fReminderTime.value || null,
     memo: fMemo.checked,
     start: fStart.value ? fStart.value : todayStr(),
     end: fEnd.value || ""
@@ -591,3 +593,4 @@ initTopDate();
 render();
 renderCalendar();
 computeGlobalStats();
+
