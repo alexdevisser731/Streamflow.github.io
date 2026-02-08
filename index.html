@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Streamflow</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-main">
+      <div>
+        <div class="top-date" id="top-date"></div>
+        <h1 class="app-title">Streamflow</h1>
+      </div>
+      <div class="top-score">
+        <span class="top-score-label">Today</span>
+        <span class="top-score-value" id="overall-rate">0%</span>
+      </div>
+    </div>
+
+    <div class="filters" id="filters-home">
+      <div class="filter-group">
+        <span class="filter-label">Status</span>
+        <button class="chip chip-active" data-status="all">All</button>
+        <button class="chip" data-status="unmet">Unmet</button>
+        <button class="chip" data-status="met">Met</button>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Time</span>
+        <button class="chip chip-active" data-time="all">All</button>
+        <button class="chip" data-time="now">Now</button>
+        <button class="chip" data-time="morning">Morning</button>
+        <button class="chip" data-time="afternoon">Afternoon</button>
+        <button class="chip" data-time="evening">Evening</button>
+      </div>
+    </div>
+
+    <div class="category-row" id="categories-home">
+      <button class="cat-chip cat-active" data-cat="all">Overall</button>
+      <button class="cat-chip" data-cat="water">💧</button>
+      <button class="cat-chip" data-cat="eyes">👀</button>
+      <button class="cat-chip" data-cat="study">🎓</button>
+      <button class="cat-chip" data-cat="spice">🌶️</button>
+      <button class="cat-chip" data-cat="coffee">☕</button>
+    </div>
+
+    <div class="filters" id="filters-dashboard" style="display:none;">
+      <div class="filter-group">
+        <span class="filter-label">Dashboard</span>
+        <span class="filter-label-small">Overzicht van je voortgang</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- HOME SCREEN -->
+  <main class="main" id="screen-home">
+    <section id="habit-list" class="habit-list"></section>
+    <div class="empty-state" id="empty-home" style="display:none;">
+      Nog geen habits zichtbaar.<br>
+      Voeg een nieuwe habit toe met de + knop.
+    </div>
+  </main>
+
+  <!-- DASHBOARD SCREEN -->
+  <main class="main" id="screen-dashboard" style="display:none;">
+    <section class="stats-panel">
+      <div class="stats-circle">
+        <div class="stats-circle-inner">
+          <div class="stats-circle-label">Overall Rate</div>
+          <div class="stats-circle-value" id="overall-rate-big">0%</div>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-label">Best Streak</div>
+          <div class="stat-value" id="best-streak">0 Days</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Perfect Days</div>
+          <div class="stat-value" id="perfect-days">0 Days</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="calendar-panel">
+      <div class="calendar-header">
+        <button id="prev-month">‹</button>
+        <div id="calendar-title"></div>
+        <button id="next-month">›</button>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+    </section>
+  </main>
+
+  <button id="add-btn" class="fab">+</button>
+
+  <nav class="bottom-nav">
+  <button class="nav-btn nav-active" data-screen="home">🏠</button>
+  <button class="nav-btn" data-screen="dashboard">📊</button>
+</nav>
+
+  <!-- Add/Edit Habit Sheet -->
+  <div class="sheet-backdrop" id="sheet-backdrop"></div>
+  <div class="sheet" id="habit-sheet">
+    <div class="sheet-header">
+      <h2 id="sheet-title">Nieuwe habit</h2>
+      <button id="sheet-close">✕</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field">
+        <span>Titel</span>
+        <input type="text" id="habit-title" placeholder="Naam van de habit" />
+      </label>
+
+      <label class="field">
+        <span>Beschrijving (optioneel)</span>
+        <input type="text" id="habit-desc" placeholder="Beschrijving (optioneel)" />
+      </label>
+
+      <label class="field">
+        <span>Emoji</span>
+        <input type="text" id="habit-emoji" maxlength="2" placeholder="💧" />
+      </label>
+
+      <label class="field">
+        <span>Kleur</span>
+        <input type="color" id="habit-color" value="#2a6df4" />
+      </label>
+
+      <label class="field">
+        <span>Categorie</span>
+        <select id="habit-category">
+          <option value="water">Water / Supplementen</option>
+          <option value="eyes">Oefeningen / Lichaam</option>
+          <option value="study">Studie / Focus</option>
+          <option value="spice">Medicatie / Specifiek</option>
+          <option value="coffee">Caffeine / Drink</option>
+          <option value="other">Overig</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Habit type</span>
+        <select id="habit-type">
+          <option value="build">Build (meer is beter)</option>
+          <option value="quit">Quit (minder is beter)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Goal period</span>
+        <select id="habit-period">
+          <option value="daily">Dag</option>
+          <option value="weekly">Week</option>
+          <option value="monthly">Maand</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Goal value</span>
+        <div class="field-inline">
+          <input type="number" id="habit-goal" min="1" value="1" />
+          <select id="habit-unit">
+            <option value="count">count</option>
+            <option value="min">min</option>
+            <option value="drink">drink</option>
+          </select>
+          <span>/</span>
+          <span id="habit-goal-period-label">Day</span>
+        </div>
+      </label>
+
+      <div class="field">
+        <span>Task days</span>
+        <div class="weekday-row" id="weekday-row">
+          <button data-day="0">SUN</button>
+          <button data-day="1">MON</button>
+          <button data-day="2">TUE</button>
+          <button data-day="3">WED</button>
+          <button data-day="4">THU</button>
+          <button data-day="5">FRI</button>
+          <button data-day="6">SAT</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span>Time range</span>
+        <div class="chip-row" id="time-range-row">
+          <button data-range="anytime" class="chip chip-active">Anytime</button>
+          <button data-range="morning" class="chip">Morning</button>
+          <button data-range="afternoon" class="chip">Afternoon</button>
+          <button data-range="evening" class="chip">Evening</button>
+        </div>
+      </div>
+
+      <div class="field-toggle">
+        <span>Reminders</span>
+        <label class="switch">
+          <input type="checkbox" id="habit-reminder" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field-toggle">
+        <span>Show memo after completion</span>
+        <label class="switch">
+          <input type="checkbox" id="habit-memo" checked />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <span>Habit term</span>
+        <div class="field-inline">
+          <label>
+            <span>Start</span>
+            <input type="date" id="habit-start" />
+          </label>
+          <label>
+            <span>End</span>
+            <input type="date" id="habit-end" />
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet-footer">
+      <button id="habit-save" class="primary-btn">Save</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+

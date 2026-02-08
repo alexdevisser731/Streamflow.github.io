@@ -1,0 +1,9 @@
+{
+  "name": "Streamflow",
+  "short_name": "Streamflow",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f7f9fc",
+  "theme_color": "#2a6df4",
+  "icons": []
+}
